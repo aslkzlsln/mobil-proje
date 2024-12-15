@@ -842,6 +842,14 @@ const UserScreen = ({ route, navigation }) => {
     <ImageBackground style={styles.background}>
       <View style={styles.container}>
         <Text style={styles.header}>Hoş Geldiniz</Text>
+        <TouchableOpacity
+  style={styles.stylishButton}
+  onPress={() => navigation.navigate("UpdateInfo", { patientData })}
+>
+  <Text style={styles.buttonText}>Bilgilerimi Güncelle</Text>
+</TouchableOpacity>
+
+        
 
         <TouchableOpacity style={styles.stylishButton} onPress={fetchTests}>
           <Text style={styles.buttonText}>
@@ -957,6 +965,7 @@ const UserScreen = ({ route, navigation }) => {
       </View>
     </ImageBackground>
   );
+  
 };
 
 const styles = StyleSheet.create({

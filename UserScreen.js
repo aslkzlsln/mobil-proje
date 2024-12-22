@@ -1103,7 +1103,7 @@ container: {
   elevation: 3,
 },
 
-/* Header Styling */
+
 header: {
   fontSize: 32,
   textAlign: 'center',
@@ -1112,7 +1112,7 @@ header: {
   color: '#333',
 },
 
-/* Stylish Button */
+
 stylishButton: {
   backgroundColor: '#004080',
   padding: 15,
@@ -1127,7 +1127,7 @@ buttonText: {
   fontWeight: 'bold',
 },
 
-/* Filter Container */
+
 filterContainer: {
   marginBottom: 20,
 },
@@ -1155,7 +1155,6 @@ picker: {
   borderRadius: 8,
 },
 
-/* Logout Button */
 logoutButton: {
   position: 'absolute',
   top: 15,
@@ -1166,7 +1165,7 @@ logoutButton: {
   zIndex: 10,
 },
 
-/* Test Container */
+
 testContainer: {
   padding: 15,
   marginBottom: 10,
@@ -1197,7 +1196,7 @@ testDate: {
   alignItems: 'center',
 },
 
-/* Modal Styling */
+
 modalContainer: {
   flex: 1,
   padding: 20,
@@ -1224,7 +1223,6 @@ guideName: {
   color: '#004080',
 },
 
-/* Close Button */
 closeButton: {
   backgroundColor: '#004080',
   padding: 10,

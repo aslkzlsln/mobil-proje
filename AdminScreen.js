@@ -10,6 +10,8 @@ import {
   Button,
   ImageBackground,
 } from "react-native";
+import { Modal } from 'react-native';
+
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { db } from "../config/firebase";
@@ -1902,97 +1904,54 @@ const AdminScreen = () => {
   const [age, setAge] = useState("");
   const [testValues, setTestValues] = useState({ IgA: "", IgM: "", IgG: "" });
   const [results, setResults] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedTest, setSelectedTest] = useState(null);
+  const [currentPatientBirthDate, setCurrentPatientBirthDate] = useState("");
 
-  const compareValuesWithGuides = (age, testValues, guidelines) => {
-    const results = [];
-    
-    guidelines.forEach((guide) => {
-      const guideResult = {
-        name: guide.name,
-        comparisons: [],
-      };
-  
-      guide.ageGroups.forEach((ageGroup) => {
-        const [minAge, maxAge] = ageGroup.ageGroup
-          .replace("months", "")
-          .replace("years", "")
-          .split("-<")
-          .map((val) => parseInt(val.trim(), 10));
-  
-        // Yaş aralığına uyup uymadığını kontrol et
-        if (age >= minAge && (!maxAge || age < maxAge)) {
-          // Test değerlerini karşılaştır
-          Object.keys(testValues).forEach((test) => {
-            const value = parseFloat(testValues[test]);
-            const range = ageGroup.ranges[test];
-  
-            if (range) {
-              const comparisons = {
-                testName: test,
-                minMax: value < range.min ? "⬇" : value > range.max ? "⬆" : "↔",
-                geoMinMax: range.geoMin
-                  ? value < range.geoMin
-                    ? "⬇"
-                    : value > range.geoMax
-                    ? "⬆"
-                    : "↔"
-                  : "-",
-                meanMinMax: range.meanMin
-                  ? value < range.meanMin
-                    ? "⬇"
-                    : value > range.meanMax
-                    ? "⬆"
-                    : "↔"
-                  : "-",
-                intervalMinMax: range.interval
-                  ? value < range.interval[0]
-                    ? "⬇"
-                    : value > range.interval[1]
-                    ? "⬆"
-                    : "↔"
-                  : "-",
-              };
-  
-              guideResult.comparisons.push(comparisons);
-            }
-          });
-        }
-      });
-  
-      if (guideResult.comparisons.length > 0) {
-        results.push(guideResult);
-      }
+  // Utility: Calculate Age in Months
+  const calculateAgeInMonths = (birthDate, testDate) => {
+    const birth = new Date(birthDate);
+    const test = new Date(testDate);
+    if (isNaN(birth.getTime()) || isNaN(test.getTime())) return null;
+
+    const yearsInMonths = (test.getFullYear() - birth.getFullYear()) * 12;
+    const monthsDifference = test.getMonth() - birth.getMonth();
+    const daysDifference = test.getDate() - birth.getDate();
+
+    let totalMonths = yearsInMonths + monthsDifference;
+    if (daysDifference < 0) {
+      totalMonths--;
+    }
+    return totalMonths;
+  };
+
+  // Utility: Classify Test Results
+  const classifyTestResult = (testName, value, ageInMonths, guide) => {
+    const ageGroup = guide.ageGroups.find((group) => {
+      const match = group.ageGroup.match(/^(\d+)\s*(?:-<|<|–|>|-)?\s*(\d+)?\s*(months)?$/);
+      if (!match) return false;
+
+      const [_, minAge, maxAge] = match.map((age) => parseInt(age, 10));
+      return ageInMonths >= minAge && ageInMonths <= maxAge;
     });
-  
-    return results;
-  };
-  
-  
-  const renderPatientResults = (age, testValues, guidelines) => {
-    const results = compareValuesWithGuides(age, testValues, guidelines);
-  
-    return results.map((guide, index) => (
-      <View key={index} style={styles.guideContainer}>
-        <Text style={styles.guideHeader}>{guide.name}</Text>
-        {guide.comparisons.map((comparison, idx) => (
-          <View key={idx} style={styles.comparisonBox}>
-            <Text style={styles.testName}>{comparison.testName}</Text>
-            <Text>Min-Max: {comparison.minMax}</Text>
-            <Text>Geo Min-Max: {comparison.geoMinMax}</Text>
-            <Text>Mean Min-Max: {comparison.meanMinMax}</Text>
-            <Text>Interval Min-Max: {comparison.intervalMinMax}</Text>
-          </View>
-        ))}
-      </View>
-    ));
-  };
-  
-  
-  // Örnek kullanım:
 
-  
+    if (!ageGroup) return { status: "Yaş grubu bulunamadı", range: null };
 
-  const addPatientTest = async () => {
+    const range = ageGroup.ranges[testName];
+    if (!range) return { status: "Referans aralığı yok", range: null };
+
+    if (value < range.min) return { status: "Düşük", range };
+    if (value > range.max) return { status: "Yüksek", range };
+    return { status: "Normal", range };
+  };
+
+  // Handle Test Click to Show Modal
+  const handleTestClick = (test) => {
+    setSelectedTest(test);
+    setModalVisible(true);
+  };
+
+   const addPatientTest = async () => {
     if (!newPatientName.trim() || !newTestName || !newTestValue.trim() || !newTestDate) {
       alert("Lütfen tüm alanları doldurun!");
       return;
@@ -2056,8 +2015,8 @@ const AdminScreen = () => {
       alert("Tahlil eklenirken bir hata oluştu.");
     }
   };
-  
-  const deleteTest = async (testToDelete) => {
+
+    const deleteTest = async (testToDelete) => {
     if (!currentPatientDoc) {
       alert("Hasta seçilmedi!");
       return;
@@ -2083,8 +2042,8 @@ const AdminScreen = () => {
       alert("Tahlil silinirken bir hata oluştu.");
     }
   };
-  
-  const searchPatientTests = async () => {
+
+ const searchPatientTests = async () => {
     if (!searchPatientName.trim()) {
       alert("Lütfen bir hasta adı girin!");
       return;
@@ -2138,9 +2097,8 @@ const AdminScreen = () => {
       alert("Hasta arama sırasında bir hata oluştu.");
     }
   };
-  
-  
-  const calculateReferences = () => {
+
+    const calculateReferences = () => {
     const ageNum = parseInt(age, 10);
   
     if (isNaN(ageNum)) {
@@ -2226,32 +2184,26 @@ const AdminScreen = () => {
   
     setResults(calculatedResults);
   };
-  
-  
-  
-
   const renderDashboard = () => (
-    <ImageBackground source={require("../assets/adminarka.png")} style={styles.background}>
+   // <ImageBackground source={require("../assets/adminarka.png")} style={styles.background}>
       <ScrollView contentContainerStyle={styles.dashboardContainer}>
         <Text style={styles.header}>ADMİN DASHBOARD</Text>
         <TouchableOpacity style={styles.card} onPress={() => setActiveSection("createGuide")}>
           <Text style={styles.cardText}>Hasta Ekle/Arama</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.card} onPress={() => setActiveSection("searchPatients")}>
           <Text style={styles.cardText}>Kılavuz Görüntüle</Text>
         </TouchableOpacity>
       </ScrollView>
-    </ImageBackground>
+    
   );
-
   const renderCreateGuide = () => (
-    <ImageBackground source={require("../assets/heklearka.png")} style={styles.background}>
+   // <ImageBackground source={require("../assets/heklearka.png")} style={styles.background}>
       <View style={styles.pinkContainer}>
         <TouchableOpacity style={styles.backButton} onPress={() => setActiveSection("dashboard")}>
           <Text style={styles.backButtonText}>GERİ</Text>
         </TouchableOpacity>
-  
+        
         <Text style={styles.header}>Hasta Arama</Text>
         <TouchableOpacity
           style={styles.toggleButton}
@@ -2263,7 +2215,7 @@ const AdminScreen = () => {
         </TouchableOpacity>
   
         {isAddingPatient ? (
-          // Hasta ekleme kısmı (bu kısmı değiştirmiyorsunuz)
+          // Patient Add Form
           <View>
             <TextInput
               style={styles.input}
@@ -2310,7 +2262,7 @@ const AdminScreen = () => {
             <Button title="Ekle" onPress={addPatientTest} />
           </View>
         ) : (
-          // Hasta arama kısmı (bu kısımda değişiklik yapıyoruz)
+          // Patient Search Form
           <View>
             <TextInput
               style={styles.input}
@@ -2319,41 +2271,41 @@ const AdminScreen = () => {
               onChangeText={setSearchPatientName}
             />
             <Button title="Ara" onPress={searchPatientTests} />
-            
             {searchResults.length > 0 ? (
-             <FlatList
-             data={searchResults}
-             keyExtractor={(item, index) => `${item.testName}-${index}`}
-             renderItem={({ item }) => (
-               <View style={styles.listItem}>
-                 <Text style={styles.testName}>{item.testName}</Text>
-                 <Text style={styles.result}>
-                   Tarih: {item.date}, Değer: {item.value.toFixed(2)}{" "}
-                   <Text style={{ color: item.comparison?.color || "gray" }}>
-                     {item.comparison?.icon || "Başlangıç"}
-                   </Text>
-                 </Text>
-                 <TouchableOpacity
-                   style={styles.deleteButton}
-                   onPress={() => deleteTest(item)}
-                 >
-                   <Text style={styles.deleteButtonText}>Sil</Text>
-                 </TouchableOpacity>
-               </View>
-             )}
-           />
-           
+              <FlatList
+                data={searchResults}
+                keyExtractor={(item, index) => `${item.testName}-${index}`}
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={() => handleTestClick(item)}>
+                    <View style={styles.listItem}>
+                      <Text style={styles.testName}>{item.testName}</Text>
+                      <Text style={styles.result}>
+                        Tarih: {item.date}, Değer: {item.value.toFixed(2)}{" "}
+                        <Text style={{ color: item.comparison?.color || "gray" }}>
+                          {item.comparison?.icon || "Başlangıç"}
+                        </Text>
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => deleteTest(item)}
+                      >
+                        <Text style={styles.deleteButtonText}>Sil</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
             ) : (
               <Text style={styles.noResult}>Sonuç Bulunamadı</Text>
             )}
           </View>
         )}
       </View>
-    </ImageBackground>
+    
   );
   
 
-  const renderSearchPatients = () => (
+const renderSearchPatients = () => (
     <View style={{ flex: 1 }}>
       <Text style={styles.header}>Yaş ve Test Rehberi</Text>
       <TextInput
@@ -2426,9 +2378,53 @@ const AdminScreen = () => {
       {activeSection === "dashboard" && renderDashboard()}
       {activeSection === "createGuide" && renderCreateGuide()}
       {activeSection === "searchPatients" && renderSearchPatients()}
+      {modalVisible && selectedTest && (
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <ScrollView>
+              <Text style={styles.modalHeader}>{`Test: ${selectedTest.testName}`}</Text>
+              {guidelinesData.guidelines.map((guide, index) => {
+                const ageInMonths = calculateAgeInMonths(
+                  currentPatientBirthDate,
+                  selectedTest.date
+                );
+                const evaluation = classifyTestResult(
+                  selectedTest.testName,
+                  selectedTest.value,
+                  ageInMonths,
+                  guide
+                );
+                return (
+                  <View key={index}>
+                    <Text style={styles.guideHeader}>{guide.name}</Text>
+                    <Text>
+                      {`Durum: ${evaluation.status} (Min: ${
+                        evaluation.range?.min || "N/A"
+                      }, Max: ${evaluation.range?.max || "N/A"})`}
+                    </Text>
+                  </View>
+                );
+              })}
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.closeButtonText}>Kapat</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {
